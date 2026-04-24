@@ -1,0 +1,9 @@
+# Ignorar imágenes crudas
+data/*/
+!data/notas.txt
+!data/*.csv
+
+# Ignorar modelos pesados y entornos
+models/*.pkl
+venv/
+__pycache__/
