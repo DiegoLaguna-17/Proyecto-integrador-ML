@@ -3,7 +3,7 @@ import cv2
 import pandas as pd
 import sys
 
-# Añadir el directorio raíz al path para importar la configuración
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import settings
 
@@ -13,13 +13,13 @@ def extract_features(image_path):
     if img is None:
         return None
     
-    # Redimensionar para estandarizar
+ 
     img = cv2.resize(img, settings.IMAGE_SIZE)
     
-    # Convertir a HSV para aislar el color de la iluminación
+
     hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
-    # Calcular histograma y aplanarlo a un vector 1D (256 columnas)
+
     hist = cv2.calcHist([hsv_img], [0, 1], None, [16, 16], [0, 180, 0, 256])
     hist_flatten = cv2.normalize(hist, hist).flatten()
     
