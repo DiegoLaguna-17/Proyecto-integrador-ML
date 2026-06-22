@@ -1,0 +1,15 @@
+# Configuración de Recuperación Visual - PlantVillage MLOps
+
+mlflow:
+  experiment_name: "PlantVillage_Disease_Classification"
+  run_name: "retrieval_embedding_128"
+
+embeddings:
+  batch_size: 32
+  model_path: "models/cnn_model.keras"
+  embeddings_path: "models/embeddings.npy"
+  index_path: "models/faiss_index.bin"
+  metadata_path: "models/image_paths.json"
+
+retrieval:
+  k: 5
