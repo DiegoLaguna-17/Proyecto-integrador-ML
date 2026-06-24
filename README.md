@@ -1,14 +1,14 @@
-# Clasificación de Fitopatologías en PlantVillage — MLOps + Visual RAG
+# Clasificación de Fitopatologías - PlantVillage Dataset
 
-Sistema completo de detección automatizada de enfermedades en plantas con **Machine Learning clásico**, **Deep Learning (CNN)**, **trazabilidad MLOps con MLflow** y **Recuperación Visual Aumentada (Visual RAG)** mediante FAISS, expuesto a través de una interfaz Streamlit.
+Sistema completo de detección automatizada de enfermedades en plantas con **Machine Learning clásico**, **Deep Learning (CNN)**, **trazabilidad MLOps con MLflow** y **Recuperación Visual Aumentada (Visual RAG)**
 
 ---
 
 ## Descripción del Proyecto
 
-Este repositorio contiene un pipeline de ciencia de datos académico/profesional que clasifica **61,486 imágenes de hojas de plantas** del dataset **PlantVillage** en **39 categorías** (sanas y enfermas), comparando modelos ML clásicos con una CNN, y ofreciendo recuperación visual de casos similares.
+Este repositorio contiene un pipeline de ciencia de datos que clasifica **61,486 imágenes de hojas de plantas** del dataset **PlantVillage** en **39 categorías** (sanas y enfermas), comparando modelos ML clásicos, una red neuronal convolucional CNN, y recuperación visual de casos similares mediante un sistema RAG visual.
 
-### ¿Qué resuelve?
+### ¿Qué resuelve el sistema RAG?
 
 Dada una foto de una hoja de planta, el sistema:
 
@@ -101,7 +101,7 @@ Proyecto-integrador-ML/
 | :------------- | :---------------------- | :------- |
 | **CNN custom** | **93.48%**              | 0.2505   |
 
-> **Conclusión:** La CNN supera al techo predictivo (~87.5%) de los modelos clásicos, validando la transición a Deep Learning. Su capa latente `embedding_latent` (dim=128) alimenta el sistema RAG Visual.
+> **Conclusión:** La CNN supera al techo predictivo (~87.5%) de los modelos clásicos, validando la transición a Deep Learning. Su capa latente `embedding_latent` (dim=128) alimenta el sistema RAG Visual, sin embargo, el modelo CNN aún no se encuentra en su capacidad más óptima debido a limitaciones de hardware para entrenamiento.
 
 ---
 
@@ -112,8 +112,8 @@ Proyecto-integrador-ML/
 | ML Clásico         | scikit-learn (Random Forest, SVC, KNN) |
 | Deep Learning      | TensorFlow / Keras                     |
 | MLOps              | MLflow (tracking local)                |
-| Vector DB          | FAISS (Facebook AI Similarity Search)  |
-| Interfaz Web       | Streamlit                              |
+| Vector DB          | FAISS                                  |
+| Interfaz Web RAG   | Streamlit                              |
 | Feature Extraction | OpenCV (Histogramas HSV)               |
 | Config             | YAML (PyYAML)                          |
 | Entorno            | Python 3.13 + venv                     |
@@ -130,7 +130,7 @@ Proyecto-integrador-ML/
 ### 1. Clonar el repositorio
 
 ```bash
-git clone <url-del-repositorio>
+git clone https://github.com/DiegoLaguna-17/Proyecto-integrador-ML.git
 cd Proyecto-integrador-ML
 ```
 
@@ -176,7 +176,7 @@ data/raw/Plant_leaf_diseases_dataset_with_augmentation.zip
 
 ---
 
-## MLflow — Seguimiento de Experimentos
+## Fase 4 - MLflow (Seguimiento de Experimentos) + RAG
 
 ### Iniciar el servidor de MLflow UI
 
@@ -184,7 +184,7 @@ data/raw/Plant_leaf_diseases_dataset_with_augmentation.zip
 mlflow server --backend-store-uri sqlite:///mlflow_local.db --default-artifact-root ./mlruns --host 127.0.0.1 --port 5000
 ```
 
-Abre el navegador en: **http://127.0.0.1:5000**
+Abrir el navegador en: **http://127.0.0.1:5000**
 
 El experimento registrado se llama: `PlantVillage_Disease_Classification`
 
@@ -215,9 +215,9 @@ Extrae el ZIP y genera el archivo `data/features.csv` con histogramas HSV.
 python main.py --stage prepare_data
 ```
 
-### Etapa 2 — Entrenar el modelo ML Baseline (Random Forest)
+### Etapa 2 — Entrenar el modelo ML Baseline (Random Forest) y Modelos Clásicos
 
-Entrena el Random Forest sobre los histogramas HSV y loguea el experimento a MLflow.
+Entrena el Random Forest sobre los histogramas HSV, entrena los modelos clásicos y loguea el experimento a MLflow.
 
 ```bash
 python main.py --stage train_ml
@@ -343,9 +343,9 @@ Imagen de consulta
 | :----------------------------- | :------------------------ | :-------------------------------------- |
 | `data/features.csv`            | `prepare_data`            | Histogramas HSV de todas las imágenes   |
 | `models/baseline_rf.pkl`       | `train_ml`                | Modelo Random Forest serializado        |
-| `models/clustering_kmeans.pkl` | `train_ml`                | Modelo Random Forest serializado        |
-| `models/knn_model.pkl`         | `train_ml`                | Modelo Random Forest serializado        |
-| `models/svc_model.pkl`         | `train_ml`                | Modelo Random Forest serializado        |
+| `models/clustering_kmeans.pkl` | `train_ml`                | Modelo Clustering Kmeans serializado    |
+| `models/knn_model.pkl`         | `train_ml`                | Modelo KNN serializado                  |
+| `models/svc_model.pkl`         | `train_ml`                | Modelo SVC serializado                  |
 | `models/cnn_model.keras`       | `train_cnn`               | Modelo CNN Keras completo               |
 | `models/embeddings.npy`        | `generate_embeddings`     | Matriz de embeddings latentes (N × 128) |
 | `models/faiss_index.bin`       | `build_index`             | Índice vectorial FAISS                  |
@@ -400,7 +400,7 @@ Los siguientes notebooks son la fuente de verdad conceptual del proyecto. Los sc
 
 ---
 
-## Propuesta de Monitoreo y Reentrenamiento (Fase 4)
+## Propuesta de Monitoreo y Reentrenamiento
 
 Para garantizar la estabilidad, robustez y mejora continua del sistema en un entorno productivo, se define la siguiente estrategia:
 

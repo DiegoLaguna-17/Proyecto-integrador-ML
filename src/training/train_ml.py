@@ -17,13 +17,8 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import adjusted_rand_score, silhouette_score, accuracy_score
 
-
-# ──────────────────────────────────────────────────────────────────────────────
 # Helper
-# ──────────────────────────────────────────────────────────────────────────────
-
 def _save_model(model, filename):
-    """Persists a model to /models/<filename> and returns the path."""
     os.makedirs(os.path.join(settings.BASE_DIR, "models"), exist_ok=True)
     path = os.path.join(settings.BASE_DIR, "models", filename)
     joblib.dump(model, path)
@@ -34,9 +29,7 @@ def _save_model(model, filename):
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. Random Forest Baseline
 # ──────────────────────────────────────────────────────────────────────────────
-
 def _run_random_forest(X_train, X_val, y_train, y_val, class_names, dataset_version, config):
-    """Trains and logs the Random Forest baseline."""
     rf_params = config['random_forest']
     run_name = config['mlflow'].get('ml_run_name', 'random_forest_v1')
 
@@ -67,9 +60,7 @@ def _run_random_forest(X_train, X_val, y_train, y_val, class_names, dataset_vers
 # ──────────────────────────────────────────────────────────────────────────────
 # 2. KNN
 # ──────────────────────────────────────────────────────────────────────────────
-
 def _run_knn(X_train, X_val, y_train, y_val, class_names, dataset_version, config):
-    """Trains and logs the KNN classifier (sklearn CPU, n_neighbors=5)."""
     knn_params = config.get('knn', {'n_neighbors': 5})
     run_name = config['mlflow'].get('knn_run_name', 'knn_v1')
 
@@ -96,9 +87,7 @@ def _run_knn(X_train, X_val, y_train, y_val, class_names, dataset_version, confi
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. SVC  (Pipeline: StandardScaler → PCA(0.95) → SVC)
 # ──────────────────────────────────────────────────────────────────────────────
-
 def _run_svc(X_train, X_val, y_train, y_val, class_names, dataset_version, config):
-    """Trains and logs the SVC pipeline (faithful to the notebook)."""
     svc_params = config.get('svc', {'kernel': 'rbf', 'probability': True, 'random_state': 42})
     run_name = config['mlflow'].get('svc_run_name', 'svc_v1')
 
@@ -138,16 +127,9 @@ def _run_svc(X_train, X_val, y_train, y_val, class_names, dataset_version, confi
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 4. Clustering — KMeans (unsupervised)
+# 4. Clustering — KMeans
 # ──────────────────────────────────────────────────────────────────────────────
-
 def _run_clustering(X_train, X_val, y_train, y_val, class_names, dataset_version, config):
-    """
-    Trains KMeans (n_clusters=10, as in the notebook) and logs to MLflow.
-    Because clustering is unsupervised, we:
-      - Report ARI and Silhouette on the validation split.
-      - Build a cluster→class mapping (majority vote) to also report accuracy.
-    """
     clustering_params = config.get('clustering', {'n_clusters': 10, 'random_state': 42})
     n_clusters = clustering_params.get('n_clusters', 10)
     random_state = clustering_params.get('random_state', 42)
@@ -156,23 +138,19 @@ def _run_clustering(X_train, X_val, y_train, y_val, class_names, dataset_version
     with mlflow.start_run(run_name=run_name):
         print(f"\n[INFO] === KMeans Clustering === run: {run_name}")
 
-        # Encode string labels to integers for ARI/majority-vote
         le = LabelEncoder()
         le.fit(y_train)
         y_train_enc = le.transform(y_train)
         y_val_enc   = le.transform(y_val)
 
-        # Combine train + val features for fitting (unsupervised — no leakage concern)
         X_all = np.vstack([X_train, X_val])
         y_all_enc = np.concatenate([y_train_enc, y_val_enc])
 
-        # Fit KMeans (as in notebook)
         kmeans = KMeans(n_clusters=n_clusters, random_state=random_state, n_init=10)
-        kmeans.fit(X_train)          # fit on train only
+        kmeans.fit(X_train)
         train_labels = kmeans.labels_
         val_labels   = kmeans.predict(X_val)
 
-        # ── Cluster → class mapping (majority vote on train set) ──────────────
         cluster_to_class = {}
         for c in range(n_clusters):
             mask = train_labels == c
@@ -183,13 +161,9 @@ def _run_clustering(X_train, X_val, y_train, y_val, class_names, dataset_version
             m = mode(votes, keepdims=True)
             cluster_to_class[c] = int(m.mode[0])
 
-        # Map val cluster labels → predicted class indices
         val_pred_enc = np.array([cluster_to_class.get(lbl, 0) for lbl in val_labels])
         val_pred_labels = le.inverse_transform(val_pred_enc)
-
-        # ── Unsupervised metrics ───────────────────────────────────────────────
         ari = adjusted_rand_score(y_val_enc, val_labels)
-        # Silhouette on a sample (can be slow on full data)
         sample_size = min(3000, len(X_val))
         idx = np.random.RandomState(42).choice(len(X_val), sample_size, replace=False)
         sil = silhouette_score(X_val[idx], val_labels[idx])
@@ -197,7 +171,7 @@ def _run_clustering(X_train, X_val, y_train, y_val, class_names, dataset_version
 
         print(f"[INFO] ARI={ari:.4f} | Silhouette={sil:.4f} | Mapped Accuracy={mapped_acc:.4f}")
 
-        # ── Log to MLflow ──────────────────────────────────────────────────────
+        # Loggear a MLFLOW
         log_params = {
             "n_clusters": n_clusters,
             "random_state": random_state,
@@ -213,20 +187,17 @@ def _run_clustering(X_train, X_val, y_train, y_val, class_names, dataset_version
         mlflow.log_metric("silhouette_score", sil)
         mlflow.log_metric("mapped_accuracy", mapped_acc)
 
-        # Save cluster-to-class mapping as JSON artifact
         os.makedirs("reports", exist_ok=True)
         mapping_path = os.path.join("reports", "cluster_class_mapping.json")
         with open(mapping_path, "w", encoding="utf-8") as f:
             json.dump({str(k): int(v) for k, v in cluster_to_class.items()}, f, indent=4)
         mlflow.log_artifact(mapping_path, artifact_path="evaluation")
 
-        # Save config snapshot
         config_path = os.path.join("reports", "config_train_ml_clustering.json")
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=4)
         mlflow.log_artifact(config_path, artifact_path="config")
 
-        # Log the KMeans model itself
         mlflow.sklearn.log_model(kmeans, artifact_path="model")
 
         _save_model(kmeans, "clustering_kmeans.pkl")
@@ -234,24 +205,17 @@ def _run_clustering(X_train, X_val, y_train, y_val, class_names, dataset_version
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Public entry point
+# Entry Point
 # ──────────────────────────────────────────────────────────────────────────────
-
 def train_ml_baseline(config_path="config/train_config.yaml"):
-    """
-    Trains all ML models (Random Forest, KNN, SVC, KMeans Clustering)
-    and logs each to a separate MLflow run inside PlantVillage_Disease_Classification.
-    """
+    # Entrena todos los modelos de ML clásicos (Random Forest, KNN, SVC, KMeans Clustering)
     config = load_yaml_config(config_path)
 
-    # Configure MLflow
     setup_mlflow(config)
 
-    # Dataset version
     zip_path = os.path.join(settings.DATA_DIR, "raw", "Plant_leaf_diseases_dataset_with_augmentation.zip")
     dataset_version = get_dataset_version(zip_path)
 
-    # Load data
     try:
         X_train, X_val, y_train, y_val = load_ml_data()
     except FileNotFoundError as e:
@@ -260,10 +224,8 @@ def train_ml_baseline(config_path="config/train_config.yaml"):
 
     print(f"[INFO] Datos de ML cargados. Train: {X_train.shape}, Val: {X_val.shape}")
 
-    # Sorted unique class names (string labels from CSV)
     class_names = sorted(list(np.unique(y_train)))
 
-    # ── Run all models ────────────────────────────────────────────────────────
     _run_random_forest(X_train, X_val, y_train, y_val, class_names, dataset_version, config)
     _run_knn          (X_train, X_val, y_train, y_val, class_names, dataset_version, config)
     _run_svc          (X_train, X_val, y_train, y_val, class_names, dataset_version, config)

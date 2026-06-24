@@ -22,7 +22,6 @@ def build_vector_index(config_path="config/retrieval_config.yaml", quick_run=Fal
     config = load_yaml_config(config_path)
     embed_config = config['embeddings']
     
-    # 1. Cargar el modelo CNN entrenado
     model_path = os.path.join(settings.BASE_DIR, embed_config['model_path'])
     if not os.path.exists(model_path):
         raise FileNotFoundError(
@@ -33,7 +32,6 @@ def build_vector_index(config_path="config/retrieval_config.yaml", quick_run=Fal
     print(f"[INFO] Cargando modelo CNN desde: {model_path}")
     full_model = tf.keras.models.load_model(model_path)
     
-    # 2. Construir el extractor de características recopilando las capas hasta 'embedding_latent'
     latent_layers = []
     for layer in full_model.layers:
         latent_layers.append(layer)
@@ -42,7 +40,6 @@ def build_vector_index(config_path="config/retrieval_config.yaml", quick_run=Fal
     latent_model = tf.keras.Sequential(latent_layers)
     print("[INFO] Extractor de embeddings latentes construido correctamente.")
     
-    # 3. Recopilar todas las rutas de imágenes en el dataset
     raw_data_dir = settings.RAW_DATA_DIR
     if not os.path.exists(raw_data_dir):
         raise FileNotFoundError(
@@ -53,14 +50,12 @@ def build_vector_index(config_path="config/retrieval_config.yaml", quick_run=Fal
     print(f"[INFO] Recopilando imágenes del dataset desde: {raw_data_dir}")
     image_paths = []
     
-    # Recorrer subcarpetas
     for folder_name in sorted(os.listdir(raw_data_dir)):
         folder_path = os.path.join(raw_data_dir, folder_name)
         if not os.path.isdir(folder_path):
             continue
         for img_name in os.listdir(folder_path):
             if img_name.lower().endswith(('.jpg', '.jpeg', '.png')):
-                # Guardar ruta relativa al directorio base para portabilidad
                 full_path = os.path.join(folder_path, img_name)
                 rel_path = os.path.relpath(full_path, settings.BASE_DIR)
                 image_paths.append(rel_path)
@@ -68,28 +63,23 @@ def build_vector_index(config_path="config/retrieval_config.yaml", quick_run=Fal
     total_images = len(image_paths)
     print(f"[INFO] Se encontraron {total_images} imágenes en el dataset.")
     
-    # Si es quick_run, limitar a un subconjunto muy pequeño de imágenes para validación rápida
     if quick_run:
         print("[INFO] Quick-run activado. Limitando extracción a 200 imágenes...")
         image_paths = image_paths[:200]
         total_images = len(image_paths)
         
-    # 4. Crear dataset de TensorFlow optimizado para cargar las imágenes
     print("[INFO] Iniciando extracción de embeddings en lotes...")
     batch_size = embed_config.get('batch_size', 32)
     
-    # Resolver rutas completas para la carga
     full_paths = [os.path.join(settings.BASE_DIR, p) for p in image_paths]
     
     path_dataset = tf.data.Dataset.from_tensor_slices(full_paths)
     image_dataset = path_dataset.map(load_and_preprocess_img, num_parallel_calls=tf.data.AUTOTUNE)
     image_dataset = image_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     
-    # Predecir/Extraer embeddings
     embeddings = latent_model.predict(image_dataset, verbose=1)
     print(f"[INFO] Extracción completada. Forma de la matriz de embeddings: {embeddings.shape}")
     
-    # 5. Guardar embeddings e índices de ruta
     os.makedirs(os.path.dirname(os.path.join(settings.BASE_DIR, embed_config['embeddings_path'])), exist_ok=True)
     
     embed_save_path = os.path.join(settings.BASE_DIR, embed_config['embeddings_path'])
@@ -101,18 +91,14 @@ def build_vector_index(config_path="config/retrieval_config.yaml", quick_run=Fal
         json.dump(image_paths, f, indent=4)
     print(f"[INFO] Rutas de imágenes guardadas en: {paths_save_path}")
     
-    # 6. Construir e inicializar el índice FAISS L2
     print("[INFO] Construyendo índice FAISS FlatL2...")
-    dimension = embeddings.shape[1] # Debe ser 128
+    dimension = embeddings.shape[1]
     
-    # Crear el índice FAISS
     index = faiss.IndexFlatL2(dimension)
     
-    # Agregar vectores de características al índice (FAISS requiere float32)
     index.add(embeddings.astype('float32'))
     print(f"[INFO] Indexados {index.ntotal} vectores en FAISS.")
     
-    # Guardar el índice
     index_save_path = os.path.join(settings.BASE_DIR, embed_config['index_path'])
     faiss.write_index(index, index_save_path)
     print(f"[INFO] Índice FAISS guardado correctamente en: {index_save_path}")
