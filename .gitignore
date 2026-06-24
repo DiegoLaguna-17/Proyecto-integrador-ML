@@ -1,9 +1,29 @@
+# Ignorar entorno virtual de python
+.venv/
+venv/
+
+# Ignorar caché
+config/__pycache__/
+
+mlruns/*/
+# Ignorar modelos y archivos pesados de models/
+models/*.pkl
+models/*.keras
+models/*.npy
+models/*.bin
+models/*.json
+
+# Ignorar reports
+reports/*.txt
+reports/*.png
+reports/*.json
+
 # Ignorar imágenes crudas
 data/*/
 !data/notas.txt
 !data/*.csv
+data/*.csv
 
 # Ignorar modelos pesados y entornos
-models/*.pkl
 venv/
 __pycache__/
