@@ -69,6 +69,7 @@ Proyecto-integrador-ML/
 │   │   └── visual_rag.py         ← Sistema de recuperación visual RAG
 │   ├── training/
 │   │   ├── __init__.py
+│   │   ├── train_automl.py       ← Entrenamiento AUTOML con Pycaret 4
 │   │   ├── train_cnn.py          ← Entrenamiento de la CNN con TensorFlow/Keras
 │   │   └── train_ml.py           ← Entrenamiento de los modelos de ML Clásicos
 │   └── utils/
@@ -223,7 +224,19 @@ Entrena el Random Forest sobre los histogramas HSV, entrena los modelos clásico
 python main.py --stage train_ml
 ```
 
-### Etapa 3 — Entrenar la CNN
+### Etapa 3 - AUTOML
+
+Aplica AUTOML para la comparación de los modelos clásicos de ML. Usa `--quick` para pruebas rápidas.
+
+```bash
+# Entrenamiento completo (puede tardar varias horas en CPU)
+python main.py --stage train_automl
+
+# Prueba rápida (tarda entre 20 a 30 minutos en CPU)
+python main.py --stage train_automl --quick
+```
+
+### Etapa 4 — Entrenar la CNN
 
 Entrena la red convolucional desde cero. Usa `--quick` para una prueba rápida (1 época, pocos batches).
 
@@ -235,7 +248,7 @@ python main.py --stage train_cnn
 python main.py --stage train_cnn --quick
 ```
 
-### Etapa 4 — Evaluar modelos
+### Etapa 5 — Evaluar modelos
 
 Muestra métricas de validación de ambos modelos en consola.
 
@@ -243,7 +256,7 @@ Muestra métricas de validación de ambos modelos en consola.
 python main.py --stage evaluate
 ```
 
-### Etapa 5 — Generar embeddings visuales
+### Etapa 6 — Generar embeddings visuales
 
 Extrae los vectores latentes de la CNN para todas las imágenes del dataset.
 
@@ -255,7 +268,7 @@ python main.py --stage generate_embeddings
 python main.py --stage generate_embeddings --quick
 ```
 
-### Etapa 6 — Construir el índice FAISS
+### Etapa 7 — Construir el índice FAISS
 
 Indexa los embeddings en una base de datos vectorial para búsqueda por similitud.
 
@@ -263,7 +276,7 @@ Indexa los embeddings en una base de datos vectorial para búsqueda por similitu
 python main.py --stage build_index
 ```
 
-### Etapa 7 — Probar la recuperación visual
+### Etapa 8 — Probar la recuperación visual
 
 Ejecuta una búsqueda de prueba con una imagen del dataset para verificar el sistema RAG.
 
@@ -367,13 +380,14 @@ TensorFlow ≥ 2.11 no soporta GPU en Windows nativo. Los mensajes `oneDNN custo
 | :--------------------- | :-------------------- |
 | `prepare_data`         | 10–30 min             |
 | `train_ml`             | 5–15 min              |
+| `train_automl`         | 20-30 min             |
 | `train_cnn` (5 épocas) | 2–6 horas             |
 | `generate_embeddings`  | 30–60 min             |
 | `build_index`          | < 1 min               |
 
 ### Flag `--quick` para desarrollo
 
-Usa `--quick` en `train_cnn` y `generate_embeddings` para verificar que el pipeline funciona end-to-end en minutos antes de ejecutar el entrenamiento completo.
+Usa `--quick` en `train_automl`, `train_cnn` y `generate_embeddings` para verificar que el pipeline funciona end-to-end en minutos antes de ejecutar el entrenamiento completo.
 
 ### Reproducibilidad
 
@@ -427,76 +441,3 @@ La actualización del modelo se realizará bajo dos modalidades:
   4. Si las métricas mejoran y no hay degradación en clases críticas, promover el nuevo modelo en MLflow y actualizar en caliente el contenedor Streamlit/servidor de inferencia.
 
 ---
-
-## Propuesta de integración de AutoML en MLflow
-
-> **Nota**: La integración de AutoML (PyCaret) en el pipeline MLflow no fue implementada en esta versión debido a la complejidad de su instalación y a los posibles conflictos de dependencias con TensorFlow en el mismo entorno virtual. A continuación se propone la estrategia técnica para realizarla.
-
-### Estrategia recomendada
-
-**Librería sugerida:** [PyCaret 3.x](https://pycaret.org/) — la misma utilizada en el notebook `AUTOML.ipynb`.
-
-#### Pasos de integración
-
-1. **Instalar PyCaret en un entorno separado (o con extras):**
-
-   ```bash
-   pip install pycaret[full]
-   ```
-
-   > Se recomienda un entorno virtual independiente para evitar conflictos con TensorFlow.
-
-2. **Crear `src/training/train_automl.py`** con la siguiente lógica:
-
-   ```python
-   import mlflow
-   from pycaret.classification import setup, compare_models, pull
-   from src.mlops.mlflow_utils import setup_mlflow
-   from src.utils.data_utils import load_ml_data
-
-   def train_automl_pipeline(config_path="config/train_config.yaml"):
-       from src.utils.config_utils import load_yaml_config
-       config = load_yaml_config(config_path)
-       setup_mlflow(config)
-
-       X_train, X_val, y_train, y_val = load_ml_data()
-
-       import pandas as pd
-       train_df = pd.DataFrame(X_train)
-       train_df['label'] = y_train
-
-       with mlflow.start_run(run_name="automl_pycaret_v1"):
-           # PyCaret setup con integración MLflow nativa
-           clf = setup(data=train_df, target='label',
-                       log_experiment=True,
-                       experiment_name="PlantVillage_Disease_Classification",
-                       session_id=42, verbose=False)
-           best_model = compare_models(n_select=1)
-           results = pull()
-           mlflow.log_table(results.reset_index(), "automl_leaderboard.json")
-   ```
-
-3. **Añadir la etapa al orquestador `main.py`:**
-
-   ```python
-   elif stage == "train_automl":
-       from src.training.train_automl import train_automl_pipeline
-       train_automl_pipeline()
-   ```
-
-4. **Ejecutar:**
-   ```bash
-   python main.py --stage train_automl
-   ```
-
-#### Ventajas de esta integración
-
-- PyCaret 3.x tiene **integración nativa con MLflow**: cada modelo evaluado se registra automáticamente como un run hijo.
-- El `experiment_name` puede apuntar al mismo experimento `PlantVillage_Disease_Classification` para centralizar todos los runs.
-- El mejor modelo devuelto por `compare_models()` puede serializarse con `joblib` y registrarse como artefacto adicional.
-
-#### Consideraciones
-
-- PyCaret requiere Python 3.8–3.11; verificar compatibilidad con la versión del entorno.
-- La ejecución de AutoML sobre 61 000 imágenes (256 features HSV) puede tardar varias horas en CPU; se recomienda usar un subconjunto estratificado (~10 000 muestras) para el benchmark.
-- El resultado del benchmark AutoML debe incluirse en la tabla comparativa de la **Fase 2** para cumplir con el requisito académico.

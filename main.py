@@ -11,6 +11,7 @@ from src.utils.config_utils import load_yaml_config
 from src.utils.data_utils import extract_dataset, get_dataset_version, load_ml_data, get_cnn_datasets
 from src.feature_extraction import process_dataset
 from src.training.train_ml import train_ml_baseline
+from src.training.train_automl import train_automl_pipeline
 from src.training.train_cnn import train_cnn_pipeline
 from src.retrieval.build_index import build_vector_index
 from src.retrieval.visual_rag import VisualRAGSystem
@@ -37,6 +38,12 @@ def run_train_ml():
     print("ETAPA: TRAIN ML BASELINE")
     print("=========================================")
     train_ml_baseline()
+
+def run_train_automl(quick=False):
+    print("=========================================")
+    print("ETAPA: TRAIN AUTOML")
+    print("=========================================")
+    train_automl_pipeline(quick=quick)
 
 def run_train_cnn(quick=False):
     print("=========================================")
@@ -158,7 +165,8 @@ def main():
         required=True,
         choices=[
             "prepare_data", 
-            "train_ml", 
+            "train_ml",
+            "train_automl", 
             "train_cnn", 
             "evaluate", 
             "generate_embeddings", 
@@ -183,6 +191,8 @@ def main():
         run_prepare_data()
     elif stage == "train_ml":
         run_train_ml()
+    elif stage == "train_automl":
+        run_train_automl(quick=quick)
     elif stage == "train_cnn":
         run_train_cnn(quick=quick)
     elif stage == "evaluate":
@@ -197,6 +207,7 @@ def main():
         print("[INFO] Iniciando ejecución completa del pipeline...")
         run_prepare_data()
         run_train_ml()
+        run_train_automl(quick=quick)
         run_train_cnn(quick=quick)
         run_evaluate()
         run_generate_embeddings(quick=quick)
